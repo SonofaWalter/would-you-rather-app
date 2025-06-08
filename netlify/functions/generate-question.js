@@ -1,4 +1,4 @@
-// This Netlify Function acts as a secure proxy to the Gemini API.
+// This is a Netlify Function that acts as a secure proxy to the Gemini API.
 // It receives a category from the frontend, constructs a prompt,
 // calls the Gemini API using a securely stored API key, and returns the AI's response.
 
@@ -16,8 +16,8 @@ exports.handler = async (event) => {
 
     let category = 'General'; // Default category
 
+    // Parse the request body to get the category sent from the React app
     try {
-        // Parse the request body to get the category sent from the React app
         const body = JSON.parse(event.body);
         if (body && body.category) {
             category = body.category;
@@ -27,63 +27,66 @@ exports.handler = async (event) => {
         console.error('Failed to parse request body:', parseError);
     }
 
-    // Retrieve the Gemini API key from Netlify Environment Variables.
-    // This keeps the API key secure and out of the client-side code.
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Access your GEMINI_API_KEY from Netlify Environment Variables
+    const API_KEY = process.env.GEMINI_API_KEY;
 
     // Check if the API key is available
-    if (!apiKey) {
+    if (!API_KEY) {
         console.error('GEMINI_API_KEY is not set in Netlify environment variables.');
         return {
             statusCode: 500,
-            body: JSON.stringify({ message: 'Server configuration error: API key missing.' }),
+            body: JSON.stringify({ message: 'Server configuration error: API key not set.' }),
         };
     }
 
-    // Initialize the Google Generative AI client with the API key
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Use the gemini-2.0-flash model for text generation
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Initialize the Google Generative AI client
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Using gemini-pro for text generation
 
-    // Construct the prompt for the AI based on the received category
-    const prompt = `Generate a "Would You Rather" question about ${category}. Make the options concise, creative, and generally humorous or thought-provoking. Avoid any negative or sad twists. Provide two distinct options (optionA and optionB) that are balanced in difficulty. Ensure the response is in JSON format with keys "optionA" and "optionB".`;
+    // Define the prompt for the Gemini API.
+    // The prompt explicitly asks for Markdown formatting within the options.
+    const prompt = `Generate a unique "Would You Rather" question with two distinct options.
+The response should be in the format: "A: [Option A Text] OR B: [Option B Text]".
+The text for Option A and Option B can include Markdown formatting like **bold** or *italics*.
+The category is: ${category}.`;
 
     try {
-        // Make the API call to Gemini 2.0 Flash
-        const result = await model.generateContent({
-            contents: [{
-                role: "user",
-                parts: [{ text: prompt }]
-            }],
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: "OBJECT",
-                    properties: {
-                        "optionA": { "type": "STRING" },
-                        "optionB": { "type": "STRING" }
-                    },
-                    "propertyOrdering": ["optionA", "optionB"]
-                }
-            }
-        });
+        // Send the prompt to the Gemini API
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text(); // Get the plain text content from the API response
 
-        // Extract the JSON string from the AI's response
-        const responseText = result.response.candidates[0].content.parts[0].text;
-        const parsedQuestion = JSON.parse(responseText);
+        // Parse the response to extract Option A and Option B
+        let optionA = "Would you rather have a pet dragon";
+        let optionB = "Or a pet unicorn";
 
-        // Return the parsed question in the response to the frontend
+        // Regex to extract options. It's more robust now that Markdown might be present.
+        const regex = /A:\s*(.*?)\s*OR\s*B:\s*(.*)/i;
+        const match = text.match(regex);
+
+        if (match && match[1] && match[2]) {
+            optionA = match[1].trim();
+            optionB = match[2].trim();
+        } else {
+            // Log the raw response if parsing fails for debugging
+            console.warn("Could not parse Gemini response:", text);
+            // Fallback to a generic question if parsing fails
+            optionA = "Would you rather always be 10 minutes late,";
+            optionB = "or always be 20 minutes early?";
+        }
+
+        // Return the parsed options as JSON
         return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(parsedQuestion),
+            body: JSON.stringify({ optionA, optionB }),
         };
-
     } catch (error) {
-        console.error('Error calling Gemini API from Netlify Function:', error);
+        console.error("Error calling Gemini API:", error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ message: 'Error generating question from AI.', error: error.message }),
+            body: JSON.stringify({ message: "Error generating question from AI.", details: error.message }),
         };
     }
 };
+
