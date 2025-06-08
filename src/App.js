@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // This import is correct and needed for Markdown rendering
 
 // Main App component for the "Would You Rather" game
 const App = () => {
@@ -45,8 +47,7 @@ const App = () => {
         setQuestion(null); // Clear the current question
 
         try {
-            // New approach: Call our Netlify Function instead of directly calling Gemini API
-            // The Netlify Function will handle the secure API key usage.
+            // Call our Netlify Function to get a Markdown-formatted question
             const response = await fetch('/.netlify/functions/generate-question', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -77,25 +78,26 @@ const App = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-800 flex flex-col items-center justify-center p-4 font-inter text-white">
-            {/* Main container for the "Would You Rather" app, styled with Tailwind CSS */}
-            <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-3xl shadow-2xl p-8 md:p-12 w-full max-w-2xl text-center border border-white border-opacity-20 transform transition-all duration-300 hover:scale-[1.01]">
-                <h1 className="text-4xl md:text-5xl font-extrabold mb-8 text-shadow-lg animate-fade-in-down">
+        // Main container with dark mode background gradient
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex flex-col items-center justify-center p-4 font-inter text-white">
+            {/* Central content card with dark transparent background, rounded corners, and shadow */}
+            <div className="bg-gray-800 bg-opacity-70 backdrop-filter backdrop-blur-lg rounded-3xl shadow-2xl p-8 md:p-12 w-full max-w-2xl text-center border border-purple-700 border-opacity-50 transform transition-all duration-300 hover:scale-[1.01] hover:shadow-purple-500/50">
+                <h1 className="text-4xl md:text-5xl font-extrabold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 text-shadow-lg animate-fade-in-down">
                     Would You Rather?
                 </h1>
 
-                {/* Category selection buttons, dynamically rendered from the 'categories' array */}
+                {/* Category selection buttons with new styling */}
                 <div className="mb-8 flex flex-wrap justify-center gap-2">
                     {categories.map((cat) => (
                         <button
-                            key={cat} // Unique key for each button for React list rendering
-                            onClick={() => handleCategoryChange(cat)} // Update category on click
+                            key={cat}
+                            onClick={() => handleCategoryChange(cat)}
                             className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ease-in-out
-                                ${category === cat // Apply active styling if this category is selected
-                                    ? 'bg-purple-600 text-white shadow-md'
-                                    : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30 hover:shadow-lg'
+                                ${category === cat
+                                    ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg'
+                                    : 'bg-gray-700 text-gray-200 hover:bg-gray-600 hover:text-white hover:shadow-md'
                                 }`}
-                            disabled={isLoading} // Disable category buttons while a question is being generated
+                            disabled={isLoading}
                         >
                             {cat}
                         </button>
@@ -103,46 +105,45 @@ const App = () => {
                 </div>
 
                 {/* Displays the currently selected category */}
-                <p className="text-lg mb-6 text-white text-opacity-80">
-                    Category: <span className="font-bold text-yellow-300">{category}</span>
+                <p className="text-lg mb-6 text-gray-300">
+                    Category: <span className="font-bold text-pink-400">{category}</span>
                 </p>
 
-                {/* Loading spinner and message displayed while fetching a new question */}
+                {/* Loading spinner and message */}
                 {isLoading && (
-                    <div className="flex justify-center items-center h-24">
-                        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500"></div>
-                        <p className="ml-4 text-lg">Generating question...</p>
+                    <div className="flex flex-col items-center justify-center h-32">
+                        <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-pink-500 border-opacity-75"></div>
+                        <p className="mt-4 text-xl text-purple-300">Summoning a dilemma...</p>
                     </div>
                 )}
 
-                {/* Error message displayed if an API call or parsing error occurs */}
+                {/* Error message display */}
                 {error && (
-                    <div className="bg-red-500 bg-opacity-70 text-white p-4 rounded-xl mb-6 text-lg font-medium shadow-md">
+                    <div className="bg-red-700 bg-opacity-80 text-white p-4 rounded-xl mb-6 text-lg font-medium shadow-md">
                         <p>{error}</p>
                     </div>
                 )}
 
-                {/* Displays the generated "Would You Rather" question options */}
-                {/* Only renders if a question exists and not currently loading */}
+                {/* Styled question options section */}
                 {question && !isLoading && (
-                    <div className="mb-8 text-lg md:text-2xl font-bold text-yellow-200 space-y-6 animate-fade-in">
-                        <div className="bg-white bg-opacity-15 p-6 rounded-2xl shadow-xl border border-white border-opacity-25 hover:bg-opacity-20 transition duration-300">
-                            <span className="text-pink-300">A:</span> {question.optionA}
+                    <div className="mb-8 text-lg md:text-2xl font-bold text-gray-100 space-y-6 animate-fade-in">
+                        <div className="bg-gray-700 bg-opacity-80 p-6 rounded-2xl shadow-xl border border-purple-600 border-opacity-50 hover:bg-gray-600 transition duration-300 transform hover:scale-[1.02]">
+                            <span className="text-pink-400">A:</span> <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert max-w-none text-gray-100">{question.optionA}</ReactMarkdown>
                         </div>
-                        <p className="text-xl md:text-3xl font-extrabold text-white text-shadow-lg my-4">OR</p>
-                        <div className="bg-white bg-opacity-15 p-6 rounded-2xl shadow-xl border border-white border-opacity-25 hover:bg-opacity-20 transition duration-300">
-                            <span className="text-blue-300">B:</span> {question.optionB}
+                        <p className="text-xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400 text-shadow-lg my-4">OR</p>
+                        <div className="bg-gray-700 bg-opacity-80 p-6 rounded-2xl shadow-xl border border-pink-600 border-opacity-50 hover:bg-gray-600 transition duration-300 transform hover:scale-[1.02]">
+                            <span className="text-purple-400">B:</span> <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert max-w-none text-gray-100">{question.optionB}</ReactMarkdown>
                         </div>
                     </div>
                 )}
 
-                {/* Button to trigger question generation */}
+                {/* Generate New Question button with vibrant gradient and rounded corners */}
                 <button
                     onClick={generateQuestion} // Call generateQuestion function on click
-                    className="mt-6 px-8 py-4 bg-gradient-to-r from-green-400 to-blue-500 text-white text-xl font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-6 px-10 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xl font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out focus:outline-none focus:ring-4 focus:ring-pink-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isLoading} // Disable button while loading
                 >
-                    {question ? 'Generate New Question' : 'Start Playing!'} {/* Text changes based on whether a question is displayed */}
+                    {question ? 'Unravel Another Dilemma!' : 'Begin the Quandary!'} {/* Text changes based on whether a question is displayed */}
                 </button>
             </div>
         </div>
