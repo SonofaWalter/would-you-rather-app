@@ -41,7 +41,7 @@ exports.handler = async (event) => {
 
     // Initialize the Google Generative AI client
     const genAI = new GoogleGenerativeAI(API_KEY);
-    // IMPORTANT CHANGE: Using 'gemini-2.0-flash' model which is widely supported for generateContent
+    // Using 'gemini-2.0-flash' model which is widely supported for generateContent
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Define the prompt for the Gemini API.
@@ -57,33 +57,47 @@ The category is: ${category}.`;
         const response = await result.response;
         const text = response.text(); // Get the plain text content from the API response
 
-        // Parse the response to extract Option A and Option B
-        let optionA = "Would you rather have a pet dragon";
-        let optionB = "Or a pet unicorn";
+        let optionA = "Would you rather always be 10 minutes late,"; // Fallback in case parsing fails
+        let optionB = "or always be 20 minutes early?"; // Fallback in case parsing fails
 
-        // Regex to extract options. It's more robust now that Markdown might be present.
-        // This regex attempts to be flexible about what comes before 'A:' and 'OR B:'.
-        // It captures everything after 'A:' until 'OR B:' for optionA, and everything after 'OR B:' for optionB.
-        const regex = /(?:^|\s*)A:\s*(.*?)(?:\s*OR\s*B:\s*(.*))?$/i;
+        // IMPROVED REGEX:
+        // This regex is designed to be more flexible.
+        // It looks for "A: " then captures everything (non-greedy) until " OR B: "
+        // Then it captures everything after " OR B: " until the end of the string.
+        // It's case-insensitive and supports multi-line.
+        const regex = /A:\s*(.*?)\s*OR\s*B:\s*(.*)/is; // Added 's' flag for dotall, 'i' for case-insensitive
         const match = text.match(regex);
 
-        if (match && match[1]) { // Ensure Option A is always captured
+        if (match && match[1] && match[2]) {
             optionA = match[1].trim();
-            if (match[2]) { // Option B is optional in case of partial matches, but we expect it.
-                optionB = match[2].trim();
-            } else {
-                // If only Option A is found, assume the rest of the text is Option B
-                // This is a fallback and might not always produce ideal results if the format is very off.
-                const remainingText = text.substring(match[0].length).trim();
-                optionB = remainingText || "or face a new challenge?"; // Fallback for Option B
-                console.warn("Partial match found for Gemini response. Option B inferred:", text);
-            }
+            optionB = match[2].trim();
         } else {
-            // Log the raw response if parsing fails for debugging
-            console.warn("Could not parse Gemini response into A and B options:", text);
-            // Fallback to a generic question if parsing fails entirely
-            optionA = "Would you rather always be 10 minutes late,";
-            optionB = "or always be 20 minutes early?";
+            // If the primary regex fails, try a simpler one in case "OR B:" is missing or malformed
+            const simpleARegex = /A:\s*(.*)/is;
+            const simpleAMatch = text.match(simpleARegex);
+            if (simpleAMatch && simpleAMatch[1]) {
+                optionA = simpleAMatch[1].trim();
+                // Attempt to split if only A: is found, assuming rest is B:
+                const splitIndex = optionA.indexOf('B:');
+                if (splitIndex !== -1) {
+                    optionB = optionA.substring(splitIndex + 2).trim();
+                    optionA = optionA.substring(0, splitIndex).trim();
+                } else {
+                    // If no B: found, try to intelligently split by common separators or assume single option
+                    const potentialSeparator = optionA.indexOf(' or ');
+                    if (potentialSeparator !== -1 && optionA.length > potentialSeparator + 4) {
+                        optionB = optionA.substring(potentialSeparator + 4).trim();
+                        optionA = optionA.substring(0, potentialSeparator).trim();
+                    } else {
+                        // If all else fails, use the whole thing for A, and a generic B
+                        console.warn("Could not find clear 'OR B:' for splitting. Using generic B.", text);
+                        optionB = "or a different challenge?";
+                    }
+                }
+            } else {
+                // If even the simple A: regex fails, then the response format is completely off.
+                console.warn("Could not parse Gemini response into A and B options:", text);
+            }
         }
 
         // Return the parsed options as JSON
