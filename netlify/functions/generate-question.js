@@ -41,7 +41,8 @@ exports.handler = async (event) => {
 
     // Initialize the Google Generative AI client
     const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Using gemini-pro for text generation
+    // IMPORTANT CHANGE: Using 'gemini-2.0-flash' model which is widely supported for generateContent
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Define the prompt for the Gemini API.
     // The prompt explicitly asks for Markdown formatting within the options.
@@ -61,16 +62,26 @@ The category is: ${category}.`;
         let optionB = "Or a pet unicorn";
 
         // Regex to extract options. It's more robust now that Markdown might be present.
-        const regex = /A:\s*(.*?)\s*OR\s*B:\s*(.*)/i;
+        // This regex attempts to be flexible about what comes before 'A:' and 'OR B:'.
+        // It captures everything after 'A:' until 'OR B:' for optionA, and everything after 'OR B:' for optionB.
+        const regex = /(?:^|\s*)A:\s*(.*?)(?:\s*OR\s*B:\s*(.*))?$/i;
         const match = text.match(regex);
 
-        if (match && match[1] && match[2]) {
+        if (match && match[1]) { // Ensure Option A is always captured
             optionA = match[1].trim();
-            optionB = match[2].trim();
+            if (match[2]) { // Option B is optional in case of partial matches, but we expect it.
+                optionB = match[2].trim();
+            } else {
+                // If only Option A is found, assume the rest of the text is Option B
+                // This is a fallback and might not always produce ideal results if the format is very off.
+                const remainingText = text.substring(match[0].length).trim();
+                optionB = remainingText || "or face a new challenge?"; // Fallback for Option B
+                console.warn("Partial match found for Gemini response. Option B inferred:", text);
+            }
         } else {
             // Log the raw response if parsing fails for debugging
-            console.warn("Could not parse Gemini response:", text);
-            // Fallback to a generic question if parsing fails
+            console.warn("Could not parse Gemini response into A and B options:", text);
+            // Fallback to a generic question if parsing fails entirely
             optionA = "Would you rather always be 10 minutes late,";
             optionB = "or always be 20 minutes early?";
         }
@@ -89,4 +100,3 @@ The category is: ${category}.`;
         };
     }
 };
-
